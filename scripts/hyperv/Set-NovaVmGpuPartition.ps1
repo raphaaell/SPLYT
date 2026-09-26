@@ -40,9 +40,9 @@ Invoke-NovaAction {
         throw "GPU '$GpuName' introuvable sur cet hote (Win32_VideoController)."
     }
 
-    $partitionableGpus = Get-VMHostPartitionableGpu -ErrorAction Stop
+    $partitionableGpus = Get-NovaPartitionableGpu
     if (-not (Test-NovaGpuPartitionable -PnpDeviceId $realGpu.PNPDeviceID -PartitionableGpus $partitionableGpus)) {
-        throw "'$GpuName' n'est pas rapporte comme partitionnable par Hyper-V (Get-VMHostPartitionableGpu). GPU-P impossible avec ce materiel/pilote."
+        throw "'$GpuName' n'est pas rapporte comme partitionnable par Hyper-V (Get-VMPartitionableGpu / Get-VMHostPartitionableGpu). GPU-P impossible avec ce materiel/pilote."
     }
 
     # --- Proportion VRAM demandee / VRAM reelle du GPU ---------------------

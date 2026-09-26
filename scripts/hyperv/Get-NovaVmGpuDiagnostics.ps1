@@ -29,7 +29,7 @@ Invoke-NovaAction {
     $partitionableGpus = $null
     $hostGpuError = $null
     try {
-        $partitionableGpus = Get-VMHostPartitionableGpu -ErrorAction Stop
+        $partitionableGpus = Get-NovaPartitionableGpu
     } catch {
         $hostGpuError = $_.Exception.Message
     }
@@ -54,7 +54,7 @@ Invoke-NovaAction {
         [void]$issues.Add("La VM est en Generation $($vm.Generation) : GPU-P necessite une VM Generation 2.")
     }
     if (-not $hostGpuCompatible) {
-        $msg = "Aucun GPU partitionnable rapporte par Hyper-V sur cet hote (Get-VMHostPartitionableGpu)."
+        $msg = "Aucun GPU partitionnable rapporte par Hyper-V sur cet hote (Get-VMPartitionableGpu / Get-VMHostPartitionableGpu)."
         if ($hostGpuError) { $msg += " Erreur : $hostGpuError" }
         [void]$issues.Add($msg)
     } elseif (-not $isHostGpuActuallyPartitionable) {

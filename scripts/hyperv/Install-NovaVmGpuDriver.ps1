@@ -56,7 +56,7 @@ Invoke-NovaAction {
     $classEntries = Get-ChildItem -Path $classKeyPath -ErrorAction SilentlyContinue |
         ForEach-Object { Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue }
     foreach ($entry in $classEntries) {
-        if ($entry.MatchingDeviceId -and $realGpu.PNPDeviceID -like "*$($entry.MatchingDeviceId)*") {
+        if ($entry.MatchingDeviceId -and (Test-NovaMatchingDeviceId -PnpDeviceId $realGpu.PNPDeviceID -MatchingDeviceId $entry.MatchingDeviceId)) {
             $registryIndex = $entry.PSChildName
             break
         }

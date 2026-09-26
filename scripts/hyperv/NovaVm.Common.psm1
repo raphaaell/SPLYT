@@ -562,6 +562,21 @@ function ConvertTo-NovaVmDto {
 
 # --- GPU-P : compatibilite et localisation du pilote hote -----------------
 
+# Retourne les GPU partitionnables rapportes par Hyper-V, quel que soit l'OS.
+# Le nom du cmdlet differe selon l'edition : Get-VMPartitionableGpu sur Windows
+# client (10/11), Get-VMHostPartitionableGpu sur Windows Server. N'en appeler
+# qu'un seul faisait echouer la detection GPU-P sur l'autre OS (verifie :
+# Get-VMHostPartitionableGpu introuvable sur Windows 11, ce qui marquait a tort
+# TOUS les GPU comme non partitionnables). Jette si aucun cmdlet n'existe.
+function Get-NovaPartitionableGpu {
+    foreach ($cmd in 'Get-VMPartitionableGpu', 'Get-VMHostPartitionableGpu') {
+        if (Get-Command $cmd -ErrorAction SilentlyContinue) {
+            return & $cmd -ErrorAction Stop
+        }
+    }
+    throw "Aucun cmdlet de partition GPU (Get-VMPartitionableGpu / Get-VMHostPartitionableGpu) disponible - Hyper-V est-il installe ?"
+}
+
 # Compare un PNPDeviceID (Win32_VideoController) aux GPU reellement rapportes
 # comme partitionnables par Hyper-V (Get-VMHostPartitionableGpu). Les deux
 # identifiants different en forme ("PCI\VEN_..\6&xxx" vs "\\?\PCI#VEN_..#6&xxx#{guid}\GPUPARAV")
@@ -628,6 +643,25 @@ function Find-NovaHostGpuDriverPackage {
     }
 }
 
+# MatchingDeviceId (registre de la classe d'affichage) et PNPDeviceID (WMI)
+# decrivent le meme GPU sous deux formes differentes : le registre ecrit p.ex.
+# "PCI\VEN_1002&DEV_73DF&REV_C0" (sans SUBSYS) alors que le PNPDeviceID intercale
+# SUBSYS avant REV ("...&DEV_73DF&SUBSYS_39911462&REV_C0\..."). Une comparaison
+# sous-chaine naive echoue donc (verifie sur une RX 6750 XT : VRAM retombait au
+# fallback 4 Go et l'index de registre restait introuvable). On compare plutot
+# jeton par jeton : chaque segment (VEN_/DEV_/SUBSYS_/REV_) du MatchingDeviceId
+# doit figurer dans le PNPDeviceID, quel que soit l'ordre.
+function Test-NovaMatchingDeviceId {
+    param([string]$PnpDeviceId, [string]$MatchingDeviceId)
+    if ([string]::IsNullOrWhiteSpace($PnpDeviceId) -or [string]::IsNullOrWhiteSpace($MatchingDeviceId)) { return $false }
+    $tokens = ($MatchingDeviceId -replace '^[^\\]*\\', '') -split '&' | Where-Object { $_ }
+    if (-not $tokens) { return $false }
+    foreach ($t in $tokens) {
+        if ($PnpDeviceId -notlike "*$t*") { return $false }
+    }
+    return $true
+}
+
 # Win32_VideoController.AdapterRAM est un DWORD 32 bits : il plafonne/deborde
 # pour tout GPU au-dela de ~4 Go (constate sur cette machine : rapporte 4 Go
 # pour un GPU qui en a reellement 24). La vraie taille se trouve dans le
@@ -646,7 +680,7 @@ function Get-NovaRealGpuVramBytes {
         ForEach-Object { Get-ItemProperty -Path $_.PSPath -ErrorAction SilentlyContinue }
 
     foreach ($entry in $entries) {
-        if ($entry.MatchingDeviceId -and $PnpDeviceId -like "*$($entry.MatchingDeviceId)*") {
+        if ($entry.MatchingDeviceId -and (Test-NovaMatchingDeviceId -PnpDeviceId $PnpDeviceId -MatchingDeviceId $entry.MatchingDeviceId)) {
             $qwSize = $entry.'HardwareInformation.qwMemorySize'
             if ($qwSize) { return [int64]$qwSize }
         }
@@ -672,6 +706,8 @@ Export-ModuleMember -Function `
     Save-NovaVmPreferences, `
     Remove-NovaVmPreferences, `
     Test-NovaGpuPartitionable, `
+    Get-NovaPartitionableGpu, `
+    Test-NovaMatchingDeviceId, `
     Find-NovaHostGpuDriverPackage, `
     Get-NovaRealGpuVramBytes, `
     ConvertTo-NovaVmDto

@@ -16,7 +16,7 @@ Invoke-NovaAction {
 
     $canListGpus = $true
     $gpuError = $null
-    try { Get-VMHostPartitionableGpu -ErrorAction Stop | Out-Null } catch { $canListGpus = $false; $gpuError = $_.Exception.Message }
+    try { Get-NovaPartitionableGpu | Out-Null } catch { $canListGpus = $false; $gpuError = $_.Exception.Message }
 
     $isElevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole(
         [Security.Principal.WindowsBuiltInRole]::Administrator)
